@@ -1,0 +1,29 @@
+1. Runtime: Ollama (primary)
+   Ollama is local, free, and works offline — no cost risk while iterating.
+   Rejected: DIAL as primary — limited USD allowance is too easy to burn during bulk testing.
+
+2. Transport: HTTP
+   A request/reply chatbot needs nothing more. HTTP is debuggable with curl and the browser network tab.
+   Rejected: WebSockets — streaming and typing indicators add complexity with no real benefit this week.
+
+3. Temperature 0.2, context window 8192
+   Low temperature keeps answers factual and consistent for shipment queries.
+   8192 tokens fits ~15 turns comfortably without hitting memory limits on a laptop.
+   Rejected: higher temperature — creative variation is a bug, not a feature, for logistics answers.
+
+4. System prompt
+   Include: who the assistant is, what it may answer, the grounding sentence.
+   Keep out: customer data, any access logic (that lives in code), internal field names.
+   Rejected: putting access rules in the prompt — a jailbreak removes them; code does not.
+
+5. What to store per turn
+   role, content, timestamp, session_id.
+   without timestamp, you cannot tell which turn caused a bad answer when debugging.
+
+6. Seed data safety
+   Fixed random seed for reproducibility.
+   Upsert on a natural key (email for customers, tracking number for shipments) so running twice is safe.
+
+7. Stack and session ID
+   Keep the default stack (FastAPI + React/Vite + Postgres + Docker Compose).
+   Store session ID in localStorage — survives page refresh, which matters for demo continuity.
