@@ -28,7 +28,13 @@
    Keep the default stack (FastAPI + React/Vite + Postgres + Docker Compose).
    Store session ID in localStorage — survives page refresh, which matters for demo continuity.
 
-8. Auth0 token storage (Week 4, not yet built)
+8. TestClient / httpx2 (suppressed deprecation)
+   Starlette added a deprecation warning for using httpx with TestClient, recommending httpx2 instead.
+   httpx2 is not yet published on PyPI so the migration cannot happen now.
+   The warning is suppressed in pyproject.toml [tool.pytest.ini_options].
+   Raise when: httpx2 appears on PyPI and respx publishes a compatible release.
+
+9. Auth0 token storage (Week 4, not yet built)
    Store Auth0 tokens in memory or httpOnly cookies — not localStorage.
    localStorage is readable by any JS on the page; an XSS vulnerability would expose the token.
    httpOnly cookies are invisible to JS and survive a refresh; in-memory tokens are safe but lost on refresh.

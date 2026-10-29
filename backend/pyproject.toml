@@ -9,3 +9,16 @@ dependencies = [
     "pydantic>=2.9",
     "psycopg[binary]>=3.2",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "respx>=0.21",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    # httpx2 is not yet published on PyPI — suppress until it ships
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
