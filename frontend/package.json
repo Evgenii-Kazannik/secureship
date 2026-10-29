@@ -6,19 +6,26 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "eslint ."
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.56.2",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "@tanstack/react-query": "^5.56.2"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "^10.13.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.13.0",
     "orval": "^8.45.0",
     "typescript": "^5.5.3",
+    "typescript-eslint": "^8.72.1",
     "vite": "^6.4.4"
   }
 }
