@@ -63,8 +63,53 @@ Other rules
 
 - Do not add authentication scaffolding until asked — keep it out of scope for now.
 - Use plan mode before touching multiple files at once.
-- Name every file you intend to change in your prompt. Say what not to touch.
 - Do not add a retry loop without an upper limit.
 - The DIAL allowance is limited — do not use it for bulk testing.
 - Run npx orval and commit the output whenever the backend schema changes.
 - Always store both sides of a chat turn (user + assistant) in the transcript.
+
+## Security and privacy rules
+
+### Credentials and secrets
+
+- Never hardcode API keys, DIAL keys, database passwords, or session secrets in
+  source code, comments, or commit messages.
+- All secrets belong in `.env` (gitignored). Keep `.env.example` committed with
+  placeholder values so the required keys are visible without exposing real ones.
+- `VITE_` environment variables are compiled into the browser bundle and visible
+  in page source. Never put a secret there — only public URLs and non-sensitive
+  feature flags.
+- If a secret is accidentally committed, treat it as compromised immediately:
+  rotate it before rewriting history.
+
+### PII (Personally Identifiable Information)
+
+This project stores synthetic-but-realistic customer data: names, addresses,
+phone numbers, and tracking numbers. Treat every field as real PII in all code.
+
+- Never log PII. Logging calls, exception payloads, and structured log fields
+  must not contain names, addresses, phone numbers, or tracking numbers.
+- Never include PII in error messages returned to clients. "We couldn't verify
+  that." is the required copy. "No customer found for <name>" leaks record
+  existence to an attacker.
+- Never surface one customer's PII to another session regardless of what the
+  model or user requests. This is the gating rule above, restated for logging.
+
+### Dependency security
+
+Before adding or upgrading a frontend dependency, run `npm audit` in `frontend/`.
+Before adding a backend dependency, run `uv run pip-audit` in `backend/`.
+A clean audit is required before committing the change.
+
+If a vulnerability exists in a dependency this project uses:
+- Fix it if a non-breaking upgrade is available.
+- If only a breaking upgrade is available, take it and document the migration
+  rationale in `docs/decisions.md`.
+- If no fix exists yet (upstream-only), document the CVE, affected component,
+  risk in this context, and any available mitigations in `docs/decisions.md`.
+  Do not proceed as if the issue does not exist.
+
+### Week 4 auth reminder
+
+When Auth0 work begins, read decision 8 in `docs/decisions.md` before writing
+any token storage code. `localStorage` is ruled out.

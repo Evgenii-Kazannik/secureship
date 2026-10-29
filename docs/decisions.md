@@ -27,3 +27,9 @@
 7. Stack and session ID
    Keep the default stack (FastAPI + React/Vite + Postgres + Docker Compose).
    Store session ID in localStorage — survives page refresh, which matters for demo continuity.
+
+8. Auth0 token storage (Week 4, not yet built)
+   Store Auth0 tokens in memory or httpOnly cookies — not localStorage.
+   localStorage is readable by any JS on the page; an XSS vulnerability would expose the token.
+   httpOnly cookies are invisible to JS and survive a refresh; in-memory tokens are safe but lost on refresh.
+   Decision: revisit when implementing Week 4, but localStorage is ruled out.
