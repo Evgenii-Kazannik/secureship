@@ -1,4 +1,8 @@
-from fastapi import FastAPI
+import os
+import re
+
+import httpx
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -10,6 +14,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:8b")
+TEMPERATURE = 0.2
+NUM_CTX = 8192
+OLLAMA_TIMEOUT = 60.0
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 
 
 class ChatRequest(BaseModel):
@@ -27,5 +38,21 @@ def health() -> dict:
 
 
 @app.post("/chat", response_model=ChatReply)
-def chat(body: ChatRequest) -> ChatReply:
-    return ChatReply(reply=f"echo: {body.message}")
+async def chat(body: ChatRequest) -> ChatReply:
+    try:
+        async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
+            resp = await client.post(
+                f"{OLLAMA_HOST}/api/chat",
+                json={
+                    "model": OLLAMA_MODEL,
+                    "messages": [{"role": "user", "content": body.message}],
+                    "stream": False,
+                    "options": {"temperature": TEMPERATURE, "num_ctx": NUM_CTX},
+                },
+            )
+            resp.raise_for_status()
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="LLM unavailable")
+
+    text = _THINK_RE.sub("", resp.json()["message"]["content"]).strip()
+    return ChatReply(reply=text)
