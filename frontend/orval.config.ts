@@ -6,7 +6,12 @@ export default defineConfig({
     output: {
       target: "src/api/generated/secureship.ts",
       client: "react-query",
-      httpClient: "fetch",
+      override: {
+        mutator: {
+          path: "src/api/mutator.ts",
+          name: "fetchClient",
+        },
+      },
     },
   },
 });

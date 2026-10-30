@@ -1,34 +1,31 @@
 import { useRef, useState } from "react";
+import { useChatChatPost } from "./api/generated/secureship";
 
 type Message = { role: "user" | "assistant"; text: string };
-
-const API = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 export default function App() {
   const sessionId = useRef(crypto.randomUUID());
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  async function send() {
+  const { mutate, isPending } = useChatChatPost({
+    mutation: {
+      onSuccess: (response) => {
+        if (response.status === 200) {
+          setMessages((m) => [...m, { role: "assistant", text: response.data.reply }]);
+          setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 0);
+        }
+      },
+    },
+  });
+
+  function send() {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || isPending) return;
     setMessages((m) => [...m, { role: "user", text }]);
     setInput("");
-    setLoading(true);
-    try {
-      const res = await fetch(`${API}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: sessionId.current, message: text }),
-      });
-      const data = await res.json();
-      setMessages((m) => [...m, { role: "assistant", text: data.reply }]);
-    } finally {
-      setLoading(false);
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 0);
-    }
+    mutate({ data: { session_id: sessionId.current, message: text } });
   }
 
   return (
@@ -69,7 +66,7 @@ export default function App() {
             </span>
           </div>
         ))}
-        {loading && <div style={{ color: "#999", fontSize: 20 }}>…</div>}
+        {isPending && <div style={{ color: "#999", fontSize: 20 }}>…</div>}
         <div ref={bottomRef} />
       </div>
       <div style={{ display: "flex", gap: 8 }}>
@@ -85,12 +82,12 @@ export default function App() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
           placeholder="Type a message…"
-          disabled={loading}
+          disabled={isPending}
           autoFocus
         />
         <button
           onClick={send}
-          disabled={loading || !input.trim()}
+          disabled={isPending || !input.trim()}
           style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer" }}
         >
           Send
