@@ -1,15 +1,53 @@
+from unittest.mock import AsyncMock, patch
+
 import httpx
 import respx
 from fastapi.testclient import TestClient
 
+from app.db import get_connection
 from app.main import OLLAMA_HOST, app
 
-client = TestClient(app)
 OLLAMA_CHAT = f"{OLLAMA_HOST}/api/chat"
 
 
 def ollama_ok(content: str) -> httpx.Response:
     return httpx.Response(200, json={"message": {"role": "assistant", "content": content}})
+
+
+def mock_db(state: str = "anonymous", transcript: list | None = None):
+    """Override get_connection with an async mock that returns an empty session."""
+    conn = AsyncMock()
+
+    async def _get_or_create(c, session_id):
+        return state, transcript or []
+
+    async def _save_turns(c, session_id, user_msg, reply):
+        pass
+
+    patcher_session = patch("app.main.get_or_create_session", side_effect=_get_or_create)
+    patcher_save = patch("app.main.save_turns", side_effect=_save_turns)
+
+    async def _override():
+        yield conn
+
+    app.dependency_overrides[get_connection] = _override
+    return patcher_session, patcher_save
+
+
+def setup_db(state="anonymous", transcript=None):
+    p1, p2 = mock_db(state, transcript)
+    p1.start()
+    p2.start()
+    return p1, p2
+
+
+def teardown_db(p1, p2):
+    p1.stop()
+    p2.stop()
+    app.dependency_overrides.clear()
+
+
+client = TestClient(app)
 
 
 # ---------------------------------------------------------------------------
@@ -28,6 +66,12 @@ class TestHealth:
 
 
 class TestChat:
+    def setup_method(self):
+        self.p1, self.p2 = setup_db()
+
+    def teardown_method(self):
+        teardown_db(self.p1, self.p2)
+
     @respx.mock
     def test_returns_reply(self):
         respx.post(OLLAMA_CHAT).mock(return_value=ollama_ok("Hello"))
@@ -55,6 +99,27 @@ class TestChat:
         assert "step 1" not in body
         assert body == "Result"
 
+    @respx.mock
+    def test_history_is_sent_to_ollama(self):
+        """Full conversation history must be forwarded so the model has context."""
+        respx.post(OLLAMA_CHAT).mock(return_value=ollama_ok("Got it"))
+        teardown_db(self.p1, self.p2)
+        p1, p2 = setup_db(
+            transcript=[
+                {"role": "user", "content": "first"},
+                {"role": "assistant", "content": "reply"},
+            ]
+        )
+        client.post("/chat", json={"session_id": "s1", "message": "second"})
+        payload = respx.calls.last.request
+        import json
+
+        messages = json.loads(payload.content)["messages"]
+        roles = [m["role"] for m in messages]
+        assert roles == ["system", "user", "assistant", "user"]
+        teardown_db(p1, p2)
+        self.p1, self.p2 = setup_db()
+
 
 # ---------------------------------------------------------------------------
 # Chat — error handling
@@ -62,6 +127,12 @@ class TestChat:
 
 
 class TestChatErrors:
+    def setup_method(self):
+        self.p1, self.p2 = setup_db()
+
+    def teardown_method(self):
+        teardown_db(self.p1, self.p2)
+
     @respx.mock
     def test_503_when_ollama_unreachable(self):
         respx.post(OLLAMA_CHAT).mock(side_effect=httpx.ConnectError("refused"))

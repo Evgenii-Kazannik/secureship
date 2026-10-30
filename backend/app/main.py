@@ -1,10 +1,14 @@
 import os
 import re
+from typing import Annotated, Any
 
 import httpx
-from fastapi import FastAPI, HTTPException
+import psycopg
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+from app.db import get_connection, get_or_create_session, save_turns
 
 app = FastAPI(title="SecureShip")
 
@@ -39,6 +43,8 @@ When you do not know something, say so clearly and briefly. Policy answers come 
 documents the backend will supply; cite the source when one is provided. If no document
 is provided, say you do not have that information rather than guessing."""
 
+DBConn = Annotated[psycopg.AsyncConnection[Any], Depends(get_connection)]
+
 
 class ChatRequest(BaseModel):
     session_id: str
@@ -55,17 +61,20 @@ def health() -> dict:
 
 
 @app.post("/chat", response_model=ChatReply)
-async def chat(body: ChatRequest) -> ChatReply:
+async def chat(body: ChatRequest, conn: DBConn) -> ChatReply:
+    state, transcript = await get_or_create_session(conn, body.session_id)
+
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages.extend(transcript)
+    messages.append({"role": "user", "content": body.message})
+
     try:
         async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
             resp = await client.post(
                 f"{OLLAMA_HOST}/api/chat",
                 json={
                     "model": OLLAMA_MODEL,
-                    "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": body.message},
-                    ],
+                    "messages": messages,
                     "stream": False,
                     "options": {"temperature": TEMPERATURE, "num_ctx": NUM_CTX},
                 },
@@ -74,5 +83,6 @@ async def chat(body: ChatRequest) -> ChatReply:
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail="LLM unavailable")
 
-    text = _THINK_RE.sub("", resp.json()["message"]["content"]).strip()
-    return ChatReply(reply=text)
+    reply = _THINK_RE.sub("", resp.json()["message"]["content"]).strip()
+    await save_turns(conn, body.session_id, body.message, reply)
+    return ChatReply(reply=reply)
