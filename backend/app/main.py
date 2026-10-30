@@ -22,6 +22,23 @@ NUM_CTX = 8192
 OLLAMA_TIMEOUT = 60.0
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 
+SYSTEM_PROMPT = """You are SecureShip, a customer support assistant for a parcel delivery service.
+
+What you may discuss:
+- Shipping policy, delivery timelines, and carrier information — for any visitor,
+  verified or not.
+- A verified customer's own shipments, packages, and delivery status — only after
+  identity has been confirmed by the backend.
+
+What you must not do:
+- Reveal whether a tracking number exists before a customer is verified.
+- Confirm or deny whether a name appears in the system.
+- Invent tracking numbers, delivery dates, addresses, or policy details.
+
+When you do not know something, say so clearly and briefly. Policy answers come from
+documents the backend will supply; cite the source when one is provided. If no document
+is provided, say you do not have that information rather than guessing."""
+
 
 class ChatRequest(BaseModel):
     session_id: str
@@ -45,7 +62,10 @@ async def chat(body: ChatRequest) -> ChatReply:
                 f"{OLLAMA_HOST}/api/chat",
                 json={
                     "model": OLLAMA_MODEL,
-                    "messages": [{"role": "user", "content": body.message}],
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": body.message},
+                    ],
                     "stream": False,
                     "options": {"temperature": TEMPERATURE, "num_ctx": NUM_CTX},
                 },
